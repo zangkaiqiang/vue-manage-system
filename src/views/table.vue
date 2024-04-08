@@ -1,89 +1,45 @@
 <template>
 	<div>
+		<!-- 新的带表头的高级表格 -->
 		<div class="container">
-			<div class="search-box">
-				<el-input v-model="query.name" placeholder="用户名" class="search-input mr10" clearable></el-input>
-				<el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-				<el-button type="warning" :icon="CirclePlusFilled" @click="visible = true">新增</el-button>
-			</div>
-			<el-table :data="tableData" border class="table" ref="multipleTable" header-cell-class-name="table-header">
-				<el-table-column prop="id" label="ID" width="55" align="center"></el-table-column>
-				<el-table-column prop="name" label="用户名" align="center"></el-table-column>
-				<el-table-column label="账户余额" align="center">
-					<template #default="scope">￥{{ scope.row.money }}</template>
-				</el-table-column>
-				<el-table-column label="头像(查看大图)" align="center">
-					<template #default="scope">
-						<el-image
-							class="table-td-thumb"
-							:src="scope.row.thumb"
-							:z-index="10"
-							:preview-src-list="[scope.row.thumb]"
-							preview-teleported
-						>
-						</el-image>
-					</template>
-				</el-table-column>
-				<el-table-column prop="address" label="地址" align="center"></el-table-column>
-				<el-table-column label="账户状态" align="center">
-					<template #default="scope">
-						<el-tag :type="scope.row.state ? 'success' : 'danger'">
-							{{ scope.row.state ? '正常' : '异常' }}
-						</el-tag>
-					</template>
-				</el-table-column>
 
-				<el-table-column prop="date" label="注册时间" align="center"></el-table-column>
-				<el-table-column label="操作" width="280" align="center">
-					<template #default="scope">
-						<el-button type="warning" size="small" :icon="View" @click="handleView(scope.row)">
-							查看
-						</el-button>
-						<el-button
-							type="primary"
-							size="small"
-							:icon="Edit"
-							@click="handleEdit(scope.$index, scope.row)"
-							v-permiss="15"
-						>
-							编辑
-						</el-button>
-						<el-button
-							type="danger"
-							size="small"
-							:icon="Delete"
-							@click="handleDelete(scope.$index)"
-							v-permiss="16"
-						>
-							删除
-						</el-button>
-					</template>
-				</el-table-column>
-			</el-table>
-			<div class="pagination">
-				<el-pagination
-					background
-					layout="total, prev, pager, next"
-					:current-page="query.pageIndex"
-					:page-size="query.pageSize"
-					:total="pageTotal"
-					@current-change="handlePageChange"
-				></el-pagination>
+			<form class="filter-form" @submit.prevent="filterData">
+			<div class="filter-group">
+				<label for="roomSelect">选择房间：</label>
+				<select v-model="selectedRoom" id="roomSelect">
+					<option value="">所有房间</option>
+					<option v-for="(room, index) in rooms" :key="index" :value="room">{{ room }}</option>
+				</select>
 			</div>
+
+			<div class="filter-group">
+				<label for="channelSelect">选择通道：</label>
+				<select v-model="selectedChannel" id="channelSelect">
+					<option value="">所有通道</option>
+					<option v-for="(channel, index) in channels" :key="index" :value="channel">{{ channel }}</option>
+				</select>
+			</div>
+
+			<button type="submit" class="filter-btn">筛选</button>
+		</form>
+			<table class="advanced-table">
+				<thead>
+					<tr>
+						<th></th> <!-- 空的表头占位 -->
+						<th v-for="(column, columnIndex) in alphabetHeaders" :key="columnIndex">{{ column }}</th>
+					</tr>
+				</thead>
+				<tbody>
+					<tr v-for="(row, rowIndex) in advancedTableData" :key="rowIndex">
+						<td>{{ row[0].header }}</td> <!-- 左侧列头 -->
+						<td v-for="(cell, cellIndex) in row" :key="cellIndex"
+							:style="{ background: cell.background, boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)' }">
+							{{ cell.value }}
+						</td>
+					</tr>
+				</tbody>
+			</table>
 		</div>
-		<el-dialog
-			:title="idEdit ? '编辑用户' : '新增用户'"
-			v-model="visible"
-			width="500px"
-			destroy-on-close
-			:close-on-click-modal="false"
-			@close="closeDialog"
-		>
-			<TableEdit :data="rowData" :edit="idEdit" :update="updateData" />
-		</el-dialog>
-		<el-dialog title="查看用户详情" v-model="visible1" width="700px" destroy-on-close>
-			<TableDetail :data="rowData" />
-		</el-dialog>
 	</div>
 </template>
 
@@ -94,6 +50,8 @@ import { Delete, Edit, Search, CirclePlusFilled, View } from '@element-plus/icon
 import { fetchData } from '../api/index';
 import TableEdit from '../components/table-edit.vue';
 import TableDetail from '../components/table-detail.vue';
+
+
 
 interface TableItem {
 	id: number;
@@ -142,7 +100,7 @@ const handleDelete = (index: number) => {
 			ElMessage.success('删除成功');
 			tableData.value.splice(index, 1);
 		})
-		.catch(() => {});
+		.catch(() => { });
 };
 
 const visible = ref(false);
@@ -171,12 +129,145 @@ const handleView = (row: TableItem) => {
 	rowData.value = row;
 	visible1.value = true;
 };
+
+
+const generateAlphabetHeaders = () => {
+	const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	const headers = [];
+	for (let i = 0; i < 10; i++) {
+		headers.push(alphabet[i]);
+	}
+	return headers;
+};
+const alphabetHeaders = ref<string[]>(generateAlphabetHeaders());
+
+interface Cell {
+	value: string;
+	background: string;
+	header: string; // 列头标题
+}
+
+// 生成10x10的带表头的高级填充表格数据
+const generateAdvancedTableData = (): Cell[][] => {
+	const data: Cell[][] = [];
+	for (let i = 0; i < 8; i++) {
+		const row: Cell[] = [];
+		for (let j = 0; j < 10; j++) {
+			// 生成渐变背景色
+			const color = Math.random() < 0.8 ? 'lightblue' : '#f1f1f1';
+			row.push({ value: `${i + 1}-${j + 1}`, background: color, header: `${8 - j - i }` });
+			//   row.push({ value: ``, background: color, header: `${j + 1}` });
+		}
+		data.push(row);
+	}
+	return data;
+};
+
+const advancedTableData = ref<Cell[][]>(generateAdvancedTableData());
+
+
+// 模拟数据
+const rooms = ref(['Room 101', 'Room 102', 'Room 103']);
+const channels = ref(['Channel A', 'Channel B', 'Channel C']);
+
+// 用户选择的房间和通道
+const selectedRoom = ref('');
+const selectedChannel = ref('');
+
+// 过滤数据
+const filterData = () => {
+	// 根据用户选择的房间和通道，过滤数据
+	// 这里使用模拟的方式，实际应用中可以根据具体的需求来实现
+	const filteredData = [];
+	if (selectedRoom.value && selectedChannel.value) {
+		filteredData.push(`房间：${selectedRoom.value}，通道：${selectedChannel.value}`);
+	} else if (selectedRoom.value) {
+		filteredData.push(`房间：${selectedRoom.value}`);
+	} else if (selectedChannel.value) {
+		filteredData.push(`通道：${selectedChannel.value}`);
+	} else {
+		filteredData.push('未选择任何筛选条件');
+	}
+	return filteredData;
+};
+
+// 过滤后的数据
+const filteredData = ref<string[]>([]);
+
+// 监听房间和通道的变化，重新过滤数据
+// watchEffect(() => {
+//   filteredData.value = filterData();
+// });
+
 </script>
 
+
 <style scoped>
-.search-box {
-	margin-bottom: 20px;
+.advanced-table {
+	border-collapse: collapse;
+	border-spacing: 0;
+	width: 100%;
 }
+
+.advanced-table th,
+.advanced-table td {
+	width: 30px;
+	height: 30px;
+	text-align: center;
+	font-size: small;
+	padding: 2;
+	border: 10px solid #fff;
+	box-shadow: 5 5 5px rgba(0, 0, 0, 1);
+}
+</style>
+
+
+<style scoped>
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter-form {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center; /* 垂直居中 */
+}
+
+.filter-group {
+  margin-right: 10px;
+}
+
+.filter-group:last-child {
+  margin-right: 0; /* 最后一个筛选组件不添加右边距 */
+}
+
+.filter-group label {
+  margin-right: 5px;
+}
+
+.filter-group select {
+  padding: 8px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+.filter-btn {
+  padding: 8px 16px;
+  border-radius: 5px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.filter-btn:hover {
+  background-color: #0056b3;
+}
+
+
 
 .search-input {
 	width: 200px;
@@ -185,6 +276,7 @@ const handleView = (row: TableItem) => {
 .mr10 {
 	margin-right: 10px;
 }
+
 .table-td-thumb {
 	display: block;
 	margin: auto;
